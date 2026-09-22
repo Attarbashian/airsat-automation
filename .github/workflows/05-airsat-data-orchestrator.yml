@@ -31,6 +31,10 @@ on:
         default: false
         type: boolean
 
+  # Daily self-healing and freshness refresh.
+  schedule:
+    - cron: "17 2 * * *"
+
 permissions:
   contents: read
 

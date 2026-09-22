@@ -53,22 +53,41 @@ jobs:
           print("Supabase connection succeeded.")
           PY
 
-      - name: Verify Earth Engine
+      - name: Verify Earth Engine and province asset
         env:
           EE_SERVICE_ACCOUNT_JSON: ${{ secrets.EE_SERVICE_ACCOUNT_JSON }}
           EE_PROJECT: ${{ secrets.EE_PROJECT }}
+          EE_PROVINCES_ASSET: ${{ secrets.EE_PROVINCES_ASSET }}
         run: |
           python - <<'PY'
           import json, os
           import ee
+
           raw = os.environ.get("EE_SERVICE_ACCOUNT_JSON", "")
           project = os.environ.get("EE_PROJECT", "")
+          asset = os.environ.get("EE_PROVINCES_ASSET", "").strip()
+
           if not raw or not project:
               raise SystemExit("Missing EE_SERVICE_ACCOUNT_JSON or EE_PROJECT")
+          if not asset:
+              raise SystemExit("Missing EE_PROVINCES_ASSET")
+
           info = json.loads(raw)
           credentials = ee.ServiceAccountCredentials(
               info["client_email"], key_data=json.dumps(info)
           )
           ee.Initialize(credentials, project=project)
+
+          fc = ee.FeatureCollection(asset)
+          count = int(fc.size().getInfo())
+          if count < 31:
+              raise SystemExit(
+                  f"Province asset contains only {count} features; expected at least 31."
+              )
+
+          sample = fc.first().toDictionary().getInfo() or {}
           print("Earth Engine authentication succeeded for project:", project)
+          print("Province asset resolved successfully.")
+          print("Province feature count:", count)
+          print("Sample province property names:", sorted(sample.keys()))
           PY

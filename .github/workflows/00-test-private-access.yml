@@ -1,0 +1,50 @@
+name: 00 - Test Private Repository Access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout private processing runner
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-processing-runner
+          ref: main
+          token: ${{ secrets.AIRSAT_RUNNER_READ_PAT }}
+          fetch-depth: 1
+          path: runner
+
+      - name: Checkout private airsat-auto
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-auto
+          ref: main
+          token: ${{ secrets.AIRSAT_AUTO_RW_PAT }}
+          fetch-depth: 0
+          path: target
+
+      - name: Verify expected source files
+        run: |
+          set -euo pipefail
+          test -f runner/scripts/plan_airsat_tasks.py
+          test -f runner/scripts/run_airsat_task.py
+          test -f runner/scripts/build_airsat_static.py
+          test -f runner/scripts/audit_airsat_data.py
+          test -f runner/scripts/process_geotiff_request.py
+          test -d target/public/data
+          test -d target/public/visual_real
+          echo "Private repositories are readable."
+
+      - name: Verify airsat-auto write authorization without changing data
+        working-directory: target
+        run: |
+          set -euo pipefail
+          git push --dry-run origin HEAD:main
+          echo "airsat-auto read/write authorization is available."

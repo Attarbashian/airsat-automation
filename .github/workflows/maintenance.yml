@@ -2,6 +2,12 @@ name: AirSat Cloud Maintenance
 
 on:
   workflow_dispatch:
+    inputs:
+      run_recovery:
+        description: "Also recover stale pending requests during this staging test?"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -80,7 +86,7 @@ jobs:
 
   recover:
     needs: probe
-    if: needs.probe.outputs.has_pending == 'true'
+    if: needs.probe.outputs.has_pending == 'true' && inputs.run_recovery == true
     runs-on: ubuntu-latest
     timeout-minutes: 330
 

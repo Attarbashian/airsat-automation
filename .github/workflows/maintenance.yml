@@ -2,15 +2,9 @@ name: AirSat Cloud Maintenance
 
 on:
   workflow_dispatch:
-    inputs:
-      run_recovery:
-        description: "Also recover stale pending requests during this staging test?"
-        required: true
-        default: false
-        type: boolean
   schedule:
-    # Temporary safe production heartbeat during migration: four times per day.
-    - cron: "23 */6 * * *"
+    # Twice per hour, away from the top-of-hour scheduling peak.
+    - cron: "17,47 * * * *"
 
 permissions:
   contents: read
@@ -89,7 +83,7 @@ jobs:
 
   recover:
     needs: probe
-    if: needs.probe.outputs.has_pending == 'true' && github.event_name == 'workflow_dispatch' && inputs.run_recovery == true
+    if: needs.probe.outputs.has_pending == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 330
 

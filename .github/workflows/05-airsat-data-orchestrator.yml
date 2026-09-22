@@ -1,0 +1,376 @@
+name: 05 - AirSat Data Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      pollutant:
+        description: "ALL = کل سایت؛ یا فقط یک آلاینده"
+        required: true
+        default: ALL
+        type: choice
+        options:
+          - ALL
+          - NO2
+          - SO2
+          - CO
+          - O3
+          - HCHO
+          - AER_AI
+          - CH4
+      scope:
+        description: "core = داده‌های اصلی سایت؛ complete = همراه بازه‌های چندساله برای یک آلاینده"
+        required: true
+        default: core
+        type: choice
+        options:
+          - core
+          - complete
+      force_rebuild:
+        description: "همه خروجی‌های سالم نیز دوباره ساخته شوند؟"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airsat-public-data-orchestrator
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      has_tasks: ${{ steps.plan.outputs.has_tasks }}
+      task_count: ${{ steps.plan.outputs.task_count }}
+      selected_pollutants: ${{ steps.plan.outputs.selected_pollutants }}
+      scope: ${{ steps.plan.outputs.scope }}
+
+    steps:
+      - name: Checkout private processing runner
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-processing-runner
+          ref: main
+          token: ${{ secrets.AIRSAT_RUNNER_READ_PAT }}
+          fetch-depth: 1
+          path: runner
+
+      - name: Checkout private airsat-auto data repository
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-auto
+          ref: main
+          token: ${{ secrets.AIRSAT_AUTO_RW_PAT }}
+          fetch-depth: 1
+          path: target
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Plan missing, stale, or corrupted outputs
+        id: plan
+        env:
+          SELECTED_POLLUTANT: ${{ github.event_name == 'workflow_dispatch' && inputs.pollutant || 'ALL' }}
+          SELECTED_SCOPE: ${{ github.event_name == 'workflow_dispatch' && inputs.scope || 'core' }}
+          FORCE_REBUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rebuild || false }}
+        run: |
+          set -euo pipefail
+          args=(
+            --root target
+            --pollutant "$SELECTED_POLLUTANT"
+            --scope "$SELECTED_SCOPE"
+            --max-tasks 240
+            --rollover-ranges-per-pollutant 1
+          )
+          if [ "$FORCE_REBUILD" = "true" ]; then
+            args+=(--force-rebuild)
+          fi
+          python runner/scripts/plan_airsat_tasks.py "${args[@]}"
+
+      - name: Planning summary
+        run: |
+          echo "### AirSat data plan" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Pollutants: **${{ steps.plan.outputs.selected_pollutants }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: **${{ steps.plan.outputs.scope }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Planned tasks: **${{ steps.plan.outputs.task_count }}**" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: ${{ matrix.task.pollutant }} · ${{ matrix.task.period_key }}
+    needs: prepare
+    if: needs.prepare.outputs.has_tasks == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        task: ${{ fromJSON(needs.prepare.outputs.matrix).include }}
+
+    env:
+      AIRSAT_START_YEAR: "2018"
+      AIRSAT_THUMB_DIMENSIONS: "1200"
+      AIRSAT_VISUAL_EXPORT_DIMENSIONS: "1200,1000,800,650"
+      AIRSAT_VISUAL_TILED_FALLBACK: "true"
+      AIRSAT_VISUAL_TILE_GRIDS: "3,4,2"
+      AIRSAT_RANGE_TILED_MIN_YEARS: "4"
+      AIRSAT_VERY_LONG_RANGE_MIN_YEARS: "8"
+      AIRSAT_VERY_LONG_RANGE_DIMENSIONS: "800,650"
+      AIRSAT_VERY_LONG_RANGE_TILE_GRIDS: "4,6"
+      AIRSAT_TILE_DOWNLOAD_TIMEOUT: "180"
+      AIRSAT_TILE_DOWNLOAD_ATTEMPTS: "1"
+      AIRSAT_TILE_MAX_SPLIT_DEPTH: "2"
+      AIRSAT_LOCAL_LONG_RANGE_MIN_YEARS: "3"
+      AIRSAT_LOCAL_LONG_RANGE_DIMENSIONS: "300"
+      AIRSAT_LOCAL_LONG_RANGE_DOWNLOAD_TIMEOUT: "180"
+      AIRSAT_LOCAL_LONG_RANGE_DOWNLOAD_ATTEMPTS: "1"
+      AIRSAT_LOCAL_ANNUAL_VISUAL_FALLBACK: "true"
+      AIRSAT_LOCAL_ANNUAL_FALLBACK_DIMENSIONS: "650"
+      AIRSAT_DOWNLOAD_TIMEOUT: "420"
+      AIRSAT_MAX_DOWNLOAD_ATTEMPTS: "2"
+      PYTHONUNBUFFERED: "1"
+      AIRSAT_STATS_SCALE: "7000"
+      AIRSAT_STATS_CRS: "EPSG:4326"
+      AIRSAT_WEB_CRS: "EPSG:3857"
+      AIRSAT_BOUNDARY_SIMPLIFY_M: "100"
+      AIRSAT_EXPECTED_PROVINCE_COUNT: "31"
+      AIRSAT_VISUAL_GAP_FILL: "true"
+      AIRSAT_VISUAL_GAP_FILL_RADII_KM: "10,30,75"
+      AIRSAT_VISUAL_FINAL_MEAN_FILL: "true"
+      EE_SERVICE_ACCOUNT_JSON: ${{ secrets.EE_SERVICE_ACCOUNT_JSON }}
+      EE_PROJECT: ${{ secrets.EE_PROJECT }}
+      EE_PROVINCES_ASSET: ${{ secrets.EE_PROVINCES_ASSET }}
+      EE_PROVINCE_NAME_FIELD: ${{ secrets.EE_PROVINCE_NAME_FIELD }}
+
+    steps:
+      - name: Checkout private processing runner
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-processing-runner
+          ref: main
+          token: ${{ secrets.AIRSAT_RUNNER_READ_PAT }}
+          fetch-depth: 1
+          path: runner
+
+      - name: Checkout latest private airsat-auto
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-auto
+          ref: main
+          token: ${{ secrets.AIRSAT_AUTO_RW_PAT }}
+          fetch-depth: 0
+          path: target
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: runner/requirements-actions.txt
+
+      - name: Install processing dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r runner/requirements-actions.txt
+
+      - name: Build and strictly validate one independent unit
+        id: build_unit
+        shell: bash
+        run: |
+          set +e
+          mkdir -p airsat-diagnostics
+          safe_name="${{ matrix.task.pollutant }}_${{ matrix.task.period_key }}"
+          log_file="airsat-diagnostics/${safe_name}.log"
+
+          echo "AirSat diagnostic log: $log_file"
+          echo "Task reason: ${{ matrix.task.reason }}"
+          echo "Task kind: ${{ matrix.task.kind }}"
+          echo "Pollutant: ${{ matrix.task.pollutant }}"
+          echo "Period: ${{ matrix.task.period_key }}"
+          echo "Year: ${{ matrix.task.year }}"
+          echo "Months: ${{ matrix.task.months }}"
+
+          python runner/scripts/run_airsat_task.py \
+            --root target \
+            --runner-root runner \
+            --kind "${{ matrix.task.kind }}" \
+            --pollutant "${{ matrix.task.pollutant }}" \
+            --period-key "${{ matrix.task.period_key }}" \
+            --year "${{ matrix.task.year }}" \
+            --months "${{ matrix.task.months }}" \
+            --timeseries-periods "${{ matrix.task.timeseries_periods }}" \
+            --attempts 2 \
+            --attempt-timeout-seconds 7800 \
+            2>&1 | tee "$log_file"
+
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=AirSat ${{ matrix.task.pollutant }} ${{ matrix.task.period_key }} failed::Open the Job Summary or download the airsat-diagnostic artifact for the exact error."
+            echo "::group::Last 160 diagnostic lines"
+            tail -n 160 "$log_file" || true
+            echo "::endgroup::"
+
+            {
+              echo "### ❌ AirSat task failed"
+              echo "- Pollutant: **${{ matrix.task.pollutant }}**"
+              echo "- Unit: **${{ matrix.task.period_key }}**"
+              echo "- Kind: **${{ matrix.task.kind }}**"
+              echo "- Planner reason: ${{ matrix.task.reason }}"
+              echo "- Exit code: **$status**"
+              echo ""
+              echo "<details><summary>آخرین 160 خط خطا</summary>"
+              echo ""
+              echo '```text'
+              tail -n 160 "$log_file" || true
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### ✅ AirSat task completed"
+              echo "- Pollutant: **${{ matrix.task.pollutant }}**"
+              echo "- Unit: **${{ matrix.task.period_key }}**"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit "$status"
+
+      - name: Upload full diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airsat-diagnostic-${{ matrix.task.pollutant }}-${{ matrix.task.period_key }}-${{ github.run_id }}
+          path: |
+            airsat-diagnostics
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit this validated unit immediately
+        working-directory: target
+        env:
+          COMMIT_MESSAGE: "data: ${{ matrix.task.pollutant }} ${{ matrix.task.period_key }}"
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data public/visual_real
+
+          if git diff --staged --quiet; then
+            echo "No generated changes for ${{ matrix.task.period_key }}"
+            exit 0
+          fi
+
+          git commit -m "$COMMIT_MESSAGE"
+
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Published on attempt $attempt"
+              exit 0
+            fi
+
+            git rebase --abort || true
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 20))
+            fi
+          done
+
+          echo "Could not publish the validated task after 3 attempts."
+          exit 1
+
+  audit:
+    name: Audit complete AirSat data contract
+    needs:
+      - prepare
+      - build
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout private processing runner
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-processing-runner
+          ref: main
+          token: ${{ secrets.AIRSAT_RUNNER_READ_PAT }}
+          fetch-depth: 1
+          path: runner
+
+      - name: Checkout latest private airsat-auto
+        uses: actions/checkout@v4
+        with:
+          repository: Attarbashian/airsat-auto
+          ref: main
+          token: ${{ secrets.AIRSAT_AUTO_RW_PAT }}
+          fetch-depth: 0
+          path: target
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate global data-health manifest
+        run: |
+          python runner/scripts/audit_airsat_data.py \
+            --root target \
+            --write-health \
+            --repair-catalog \
+            --strict-pollutants ALL \
+            --no-fail
+
+      - name: Publish health manifest and catalog normalization
+        working-directory: target
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/health public/data/catalog/layers.json
+
+          if ! git diff --staged --quiet; then
+            git commit -m "health: refresh AirSat data manifest"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+      - name: Enforce health for the selected pollutants
+        id: strict_audit
+        shell: bash
+        run: |
+          set +e
+          mkdir -p airsat-audit-diagnostics
+          python runner/scripts/audit_airsat_data.py \
+            --root target \
+            --strict-pollutants "${{ needs.prepare.outputs.selected_pollutants }}" \
+            2>&1 | tee airsat-audit-diagnostics/audit.log
+          status=${PIPESTATUS[0]}
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=AirSat data contract audit failed::See Job Summary and the airsat-audit-diagnostic artifact."
+            {
+              echo "### ❌ AirSat data audit failed"
+              echo "- Pollutants: **${{ needs.prepare.outputs.selected_pollutants }}**"
+              echo ""
+              echo '```text'
+              tail -n 180 airsat-audit-diagnostics/audit.log || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
+
+      - name: Upload audit diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airsat-audit-diagnostic-${{ github.run_id }}
+          path: |
+            airsat-audit-diagnostics
+            target/public/data/health/data-health.json
+          if-no-files-found: warn
+          retention-days: 14

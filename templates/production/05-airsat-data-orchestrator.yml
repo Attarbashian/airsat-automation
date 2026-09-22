@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout private processing runner
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Attarbashian/airsat-processing-runner
           ref: main
@@ -64,7 +64,7 @@ jobs:
           path: runner
 
       - name: Checkout private airsat-auto data repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Attarbashian/airsat-auto
           ref: main
@@ -73,7 +73,7 @@ jobs:
           path: target
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -154,7 +154,7 @@ jobs:
 
     steps:
       - name: Checkout private processing runner
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Attarbashian/airsat-processing-runner
           ref: main
@@ -163,7 +163,7 @@ jobs:
           path: runner
 
       - name: Checkout latest private airsat-auto
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Attarbashian/airsat-auto
           ref: main
@@ -172,7 +172,7 @@ jobs:
           path: target
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -249,7 +249,7 @@ jobs:
 
       - name: Upload full diagnostic log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: airsat-diagnostic-${{ matrix.task.pollutant }}-${{ matrix.task.period_key }}-${{ github.run_id }}
           path: |
@@ -299,7 +299,7 @@ jobs:
 
     steps:
       - name: Checkout private processing runner
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Attarbashian/airsat-processing-runner
           ref: main
@@ -308,7 +308,7 @@ jobs:
           path: runner
 
       - name: Checkout latest private airsat-auto
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Attarbashian/airsat-auto
           ref: main
@@ -317,7 +317,7 @@ jobs:
           path: target
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -371,7 +371,7 @@ jobs:
 
       - name: Upload audit diagnostic report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: airsat-audit-diagnostic-${{ github.run_id }}
           path: |

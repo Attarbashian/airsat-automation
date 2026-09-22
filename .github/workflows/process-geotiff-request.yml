@@ -73,7 +73,7 @@ jobs:
           test -s /usr/local/share/fonts/airsat/Vazir-Bold.ttf
 
           python -m pip install --upgrade pip
-          python -m pip install earthengine-api requests pillow arabic-reshaper python-bidi
+          python -m pip install earthengine-api requests pillow arabic-reshaper python-bidi rasterio
 
       - name: Process AirSat request
         env:

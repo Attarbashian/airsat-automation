@@ -8,6 +8,9 @@ on:
         required: true
         default: false
         type: boolean
+  schedule:
+    # Temporary safe production heartbeat during migration: four times per day.
+    - cron: "23 */6 * * *"
 
 permissions:
   contents: read
@@ -86,7 +89,7 @@ jobs:
 
   recover:
     needs: probe
-    if: needs.probe.outputs.has_pending == 'true' && inputs.run_recovery == true
+    if: needs.probe.outputs.has_pending == 'true' && github.event_name == 'workflow_dispatch' && inputs.run_recovery == true
     runs-on: ubuntu-latest
     timeout-minutes: 330
 

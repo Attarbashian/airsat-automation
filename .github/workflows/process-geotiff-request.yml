@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout private processing runner
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: Attarbashian/airsat-processing-runner
           ref: main
@@ -36,7 +36,7 @@ jobs:
           path: runner
 
       - name: Checkout private airsat-auto time-series data
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: Attarbashian/airsat-auto
           ref: main
@@ -45,12 +45,12 @@ jobs:
           path: target
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Cache OpenStreetMap tiles
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: ~/.cache/airsat-osm
           key: airsat-osm-${{ runner.os }}-${{ github.run_id }}

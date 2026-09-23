@@ -1,36 +1,50 @@
-# Migration status
+# AirSat automation migration — corrected final state
 
-## Completed
+## Objective
 
-- Public repository `Attarbashian/airsat-automation` created.
-- Private-repository access verified.
-- Supabase connectivity verified.
-- Earth Engine connectivity and 31-province asset verified.
-- Real Action 5 production-path run succeeded.
-- Daily Action 5 schedule moved to the public automation repository.
-- Supabase heartbeat moved to the public automation repository.
-- Pending GeoTIFF recovery moved to the public automation repository.
-- Old high-frequency private recovery schedule disabled.
-- Old private heartbeat schedule disabled.
-- Old private Action 5 schedule disabled.
-- Planner freshness safety window added to reduce planner/audit TTL races.
-- Cloudflare GeoTIFF dispatch switched to `Attarbashian/airsat-automation`.
-- Real public GeoTIFF workflow completed successfully.
-- Resend ready-email delivery completed successfully with attachment.
+Move GitHub Actions execution from the private processing repository to the public `Attarbashian/airsat-automation` repository **without changing the established AirSat processing logic**.
 
-## Active production schedules
+## Corrected production state
 
-- AirSat data orchestrator: `17 2 * * *`
-- Cloud maintenance / pending recovery: `17,47 * * * *`
+- Private processing source remains authoritative.
+- Public automation repository only orchestrates/checks out that source.
+- `airsat-auto` remains the private production/generated-data target.
+- Cloudflare dispatches on-demand GeoTIFF requests to the public automation repository.
 
-## Rollback
+## Production workflows mirrored from the original private setup
 
-Backup branches created before cutover:
-- `backup/pre-public-automation-cutover-2026-09-22` in `airsat-processing-runner`
-- `backup/pre-public-automation-cutover-2026-09-22` in `airsat-automation`
+- Action 5: `17 2 * * *`
+- Pending GeoTIFF recovery: `*/5 * * * *`
+- Supabase heartbeat: `40 20 * * *`
+- On-demand GeoTIFF: workflow_dispatch from Cloudflare
 
-The old private workflows remain manually dispatchable for rollback/reference but have no active schedules.
+## Corrections after audit
 
-## Notes
+Unauthorized/extra behavior changes introduced during migration were reverted:
 
-Historical failed GitHub Actions runs remain visible as immutable execution history. Their schedules have been disabled; they are not active jobs.
+- removed the planner 6-hour freshness-safety modification;
+- restored the original GeoTIFF processor exactly;
+- removed GeoTIFF retry/tiled-fallback/requeue changes;
+- restored the original pending-request recovery script;
+- removed the added rasterio dependency/fallback;
+- removed the invented combined `AirSat Cloud Maintenance` production workflow;
+- restored the original split heartbeat and pending-recovery workflows and schedules.
+
+## Allowed migration-only differences
+
+The public workflows differ from the original only where necessary to run the same code from another repository:
+
+- private runner checkout using `AIRSAT_RUNNER_READ_PAT`;
+- private target checkout using `AIRSAT_AUTO_RW_PAT`;
+- `runner/` working paths;
+- secret-name mapping for the existing public repository secrets.
+
+## Private repository
+
+All non-scheduling source files now match the pre-cutover baseline.  
+Only the three old private schedules are disabled to avoid duplicate runs and private Actions-minute consumption.
+
+## Backups
+
+- `backup/pre-public-automation-cutover-2026-09-22`
+- `backup/post-cutover-geotiff-experiments-2026-09-23`

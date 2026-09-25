@@ -44,13 +44,23 @@ jobs:
               ;;
           esac
 
+          CURL_HEADERS=(
+            --header "apikey: ${SUPABASE_HEARTBEAT_SECRET_KEY}"
+            --header "Accept: application/json"
+          )
+
+          if [[ "${SUPABASE_HEARTBEAT_SECRET_KEY}" == eyJ* ]]; then
+            CURL_HEADERS+=(
+              --header "Authorization: Bearer ${SUPABASE_HEARTBEAT_SECRET_KEY}"
+            )
+          fi
+
           HTTP_CODE="$(curl \
             --silent \
             --show-error \
             --output /tmp/airsat-heartbeat-response.json \
             --write-out "%{http_code}" \
-            --header "apikey: ${SUPABASE_HEARTBEAT_SECRET_KEY}" \
-            --header "Accept: application/json" \
+            "${CURL_HEADERS[@]}" \
             "${CLEAN_URL}/rest/v1/site_settings?select=key&limit=1")"
 
           if [ "$HTTP_CODE" != "200" ]; then

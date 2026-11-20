@@ -4,3 +4,5 @@ The private national Action 5 and visual output paths remain unchanged.
 This marker is not a recurring trigger; future jobs follow Action 5 completion.
 
 Post-cutover probe: prove that completed October 2026 caches result in zero EE work.
+
+Signature-aware province planner regression probe: 2026-11-20.

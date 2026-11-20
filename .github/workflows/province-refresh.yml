@@ -3,8 +3,10 @@ on:
   push:
     branches:
       - feat/airsat-province-automation-20261120
+      - main
     paths:
       - .github/workflows/province-refresh.yml
+      - ops/province-refresh-activate.txt
   workflow_dispatch:
     inputs:
       execute:
@@ -43,7 +45,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Attarbashian/airsat-auto
-          ref: ${{ github.event_name == 'push' && 'fix/airsat-province-incremental-20261120' || 'main' }}
+          ref: ${{ github.ref == 'refs/heads/feat/airsat-province-automation-20261120' && 'fix/airsat-province-incremental-20261120' || 'main' }}
           token: ${{ secrets.AIRSAT_AUTO_RW_PAT }}
           fetch-depth: 0
           path: target
@@ -93,7 +95,11 @@ jobs:
           python target/scripts/validate_yazd_dust_screening.py
 
       - name: Publish only validated Yazd outputs to private AirSat
-        if: (github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.execute == true))
+        if: >-
+          github.event_name == 'workflow_run' ||
+          (github.event_name == 'workflow_dispatch' && inputs.execute == true) ||
+          (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+           github.event.head_commit.message == 'ops: activate province data migration')
         working-directory: target
         run: |
           set -euo pipefail

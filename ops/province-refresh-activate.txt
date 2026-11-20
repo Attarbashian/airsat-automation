@@ -2,3 +2,5 @@ AirSat provincial cache controlled activation on 2026-11-20.
 Run validated scientific cache migration on the PUBLIC Actions runner.
 The private national Action 5 and visual output paths remain unchanged.
 This marker is not a recurring trigger; future jobs follow Action 5 completion.
+
+Post-cutover probe: prove that completed October 2026 caches result in zero EE work.

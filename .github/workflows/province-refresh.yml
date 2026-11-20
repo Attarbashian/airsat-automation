@@ -58,6 +58,11 @@ jobs:
       - name: Compile provincial Python modules
         run: python -m compileall -q target/scripts
 
+      - name: Diagnose existing static-resilience gate (informational)
+        if: github.event_name == 'push'
+        continue-on-error: true
+        run: python target/scripts/validate_static_resilience.py
+
       - name: Unit-test durable cache
         run: python -m unittest discover -s target/scripts -p 'test_airsat_province_cache.py' -v
 
